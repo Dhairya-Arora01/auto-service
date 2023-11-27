@@ -48,7 +48,38 @@ type PodReconciler struct {
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	_ = log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	pod := &corev1.Pod{}
+
+	if err := r.Client.Get(ctx, req.NamespacedName, pod); err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if pod.Labels["auto-service"] == "true" {
+
+		if pod.Labels["service-active"] == "true" {
+			return ctrl.Result{}, nil
+
+		} else if pod.Labels["service-active"] == "false" {
+
+			if err := r.createService(ctx, pod); err != nil {
+				return ctrl.Result{}, client.IgnoreAlreadyExists(err)
+			}
+
+			pod.Labels["service-active"] = "true"
+			if err := r.Update(ctx, pod); err != nil {
+				return ctrl.Result{}, err
+			}
+
+		} else {
+
+			pod.Labels["service-active"] = "false"
+
+			if err := r.Update(ctx, pod); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+
+	}
 
 	return ctrl.Result{}, nil
 }
