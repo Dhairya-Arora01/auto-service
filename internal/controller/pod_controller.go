@@ -20,6 +20,7 @@ import (
 	"context"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,15 +47,27 @@ type PodReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.4/pkg/reconcile
 func (r *PodReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	l := log.FromContext(ctx)
 
 	pod := &corev1.Pod{}
 
 	if err := r.Client.Get(ctx, req.NamespacedName, pod); err != nil {
+
+		if errors.IsNotFound(err) {
+			l.Info("Pod no longer exists")
+
+			if err := r.cleanAssociatedServices(ctx, req.NamespacedName); err != nil {
+				return ctrl.Result{}, err
+			}
+
+			return ctrl.Result{}, nil
+
+		}
+
 		return ctrl.Result{}, err
 	}
 
-	if pod.Labels["auto-service"] == "true" {
+	if pod.Status.Phase == corev1.PodRunning && pod.Labels["auto-service"] == "true" && isPodReady(pod) {
 
 		if pod.Labels["service-active"] == "true" {
 			return ctrl.Result{}, nil
