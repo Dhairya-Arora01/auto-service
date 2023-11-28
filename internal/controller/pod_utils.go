@@ -87,8 +87,11 @@ func (r *PodReconciler) cleanAssociatedServices(ctx context.Context, podNamespac
 		return client.IgnoreNotFound(err)
 	}
 
-	if err := r.Client.Delete(ctx, service); err != nil {
-		return err
+	if service.Labels["auto-service"] == "true" {
+
+		if err := r.Client.Delete(ctx, service); err != nil {
+			return err
+		}
 	}
 
 	return nil
